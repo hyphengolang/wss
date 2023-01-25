@@ -4,12 +4,14 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"sync"
 
 	"github.com/gobwas/ws"
 	"github.com/gobwas/ws/wsutil"
 )
 
 type Broker struct {
+	mu sync.Mutex
 	cs map[string]*Client
 }
 
@@ -22,12 +24,27 @@ func NewBroker() *Broker {
 }
 
 func (b *Broker) Find(id string) (*Client, bool) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
 	cli, ok := b.cs[id]
 	return cli, ok
 }
 
 func (b *Broker) Add(id string, cli *Client) {
-	b.cs[id] = cli
+	b.mu.Lock()
+	{
+		b.cs[id] = cli
+	}
+	b.mu.Unlock()
+}
+
+func (b *Broker) Remove(id string) {
+	b.mu.Lock()
+	{
+		delete(b.cs, id)
+	}
+	b.mu.Unlock()
 }
 
 func read(conn *connHander, cli *Client) {

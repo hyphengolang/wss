@@ -61,7 +61,7 @@ func serveIndex(w http.ResponseWriter, r *http.Request) {
 }
 
 func newChatService(db *sql.DB) http.Handler {
-	chatRepo := repo.NewRepo(db)
+	chatRepo := repo.NewChatRepo(db)
 	chatSrv := srv.NewService(chatRepo)
 	return chatSrv
 }

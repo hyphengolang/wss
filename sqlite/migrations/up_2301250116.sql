@@ -1,0 +1,10 @@
+CREATE TABLE IF NOT EXISTS "chats" (
+    id BLOB,
+    PRIMARY KEY (id)
+);
+
+CREATE TABLE IF NOT EXISTS "messages" (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    chat_id BLOB NOT NULL REFERENCES chats(id),
+    content TEXT
+);

@@ -3,7 +3,8 @@ package chat
 import "github.com/google/uuid"
 
 type Chat struct {
-	ID uuid.UUID `json:"id"`
+	ID       uuid.UUID  `json:"id"`
+	Messages []*Message `json:"messages"`
 }
 
 func NewChat() *Chat {
@@ -14,4 +15,10 @@ func NewChat() *Chat {
 
 func (c *Chat) String() string {
 	return "chat no: " + c.ID.String()
+}
+
+type Message struct {
+	ID      int    `json:"id,omitempty"`
+	Content string `json:"content"`
+	Chat    *Chat  `json:"-"`
 }
