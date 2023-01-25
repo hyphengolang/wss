@@ -115,7 +115,7 @@ func read(c *connHandler, cli *Client) {
 		c.rwc.Close()
 	}()
 
-	c.rwc.SetWriteDeadline(time.Now().Add(c.pongWait))
+	c.rwc.SetReadDeadline(time.Now().Add(c.pongWait))
 	c.rwc.SetReadLimit(c.readLimit)
 	// NOTE -- unsure if this is needed
 	c.rwc.SetPongHandler(func(string) error { return c.rwc.SetWriteDeadline(time.Now().Add(c.pongWait)) })
