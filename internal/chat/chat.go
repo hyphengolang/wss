@@ -5,8 +5,8 @@ import (
 
 	"github.com/google/uuid"
 
-	websocket "com.adoublef.wss/gobwas"
 	"com.adoublef.wss/internal"
+	websocket "com.adoublef.wss/internal/http/websocket/gobwas"
 )
 
 type Chat struct {
@@ -49,39 +49,30 @@ type Message struct {
 
 type Broker internal.Broker[string, *Chat]
 
-// Material
-//
-// https://www.cs.cmu.edu/~410-s05/lectures/L31_LockFree.pdf
 type chatBroker struct {
 	m sync.Map
 }
 
 func NewBroker() Broker {
 	b := &chatBroker{}
-
 	return b
 }
 
-// Delete implements ChatBroker
-func (b *chatBroker) Delete(key string) {
-	b.m.Delete(key)
+func (b *chatBroker) Delete(id string) {
+	b.m.Delete(id)
 }
 
-// Load implements ChatBroker
-func (b *chatBroker) Load(key string) (value *Chat, ok bool) {
-	v, ok := b.m.Load(key)
+func (b *chatBroker) Load(id string) (value *Chat, ok bool) {
+	v, ok := b.m.Load(id)
 	return v.(*Chat), ok
 }
 
-// Store implements ChatBroker
-func (b *chatBroker) Store(key string, c *Chat) {
-	b.m.Store(key, c)
+func (b *chatBroker) Store(id string, chat *Chat) {
+	b.m.Store(id, chat)
 }
 
-// LoadOrStore implements ChatBroker
-func (b *chatBroker) LoadOrStore(key string, chat *Chat) (*Chat, bool) {
-	actual, loaded := b.m.LoadOrStore(key, chat)
-	// does not exist
+func (b *chatBroker) LoadOrStore(id string, chat *Chat) (*Chat, bool) {
+	actual, loaded := b.m.LoadOrStore(id, chat)
 	if !loaded {
 		actual = chat
 		actual.(*Chat).SetClient(websocket.NewClient())

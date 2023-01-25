@@ -7,8 +7,8 @@ import (
 	"net/http"
 	"strconv"
 
-	srv "com.adoublef.wss/chat/http"
-	repo "com.adoublef.wss/chat/sqlite"
+	srv "com.adoublef.wss/internal/chat/http"
+	repo "com.adoublef.wss/internal/chat/sqlite"
 	"github.com/go-chi/chi/v5"
 
 	_ "embed"

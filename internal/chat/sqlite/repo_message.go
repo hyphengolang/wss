@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql"
 
-	"com.adoublef.wss/chat"
+	"com.adoublef.wss/internal/chat"
 )
 
 type msgRepo struct {

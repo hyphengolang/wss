@@ -9,8 +9,8 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
-	"com.adoublef.wss/chat"
-	repo "com.adoublef.wss/chat/sqlite"
+	"com.adoublef.wss/internal/chat"
+	repo "com.adoublef.wss/internal/chat/sqlite"
 )
 
 var _ http.Handler = (*service)(nil)

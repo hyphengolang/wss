@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql"
 
-	intern "com.adoublef.wss/chat"
+	intern "com.adoublef.wss/internal/chat"
 )
 
 type ChatRepo Repo[*intern.Chat]
