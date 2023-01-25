@@ -19,7 +19,7 @@ type service struct {
 	r repo.ChatRepo
 	m chi.Router
 
-	br chat.ChatBroker
+	br chat.Broker
 }
 
 func (s *service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -92,14 +92,13 @@ func chatIDFromContext(ctx context.Context) (uuid.UUID, error) {
 func (s *service) handleP2PConn() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		uid, _ := chatIDFromRequest(r)
-
 		// NOTE lookup cache first, then db
 		chat, err := s.r.Find(r.Context(), uid)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusNotFound)
 			return
 		}
-
+		// NOTE this may be risky
 		chat, _ = s.br.LoadOrStore(uid.String(), chat)
 		chat.Client().ServeHTTP(w, r)
 	}
@@ -113,8 +112,8 @@ func (s *service) handleDeleteChat() http.HandlerFunc {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-
-		s.br.Delete(uid.String())
+		// NOTE async deletion is ok
+		go s.br.Delete(uid.String())
 
 		s.respond(w, r, nil, http.StatusNoContent)
 	}

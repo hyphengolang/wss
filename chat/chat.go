@@ -6,6 +6,7 @@ import (
 	"github.com/google/uuid"
 
 	websocket "com.adoublef.wss/gobwas"
+	"com.adoublef.wss/internal"
 )
 
 type Chat struct {
@@ -46,21 +47,14 @@ type Message struct {
 	Chat    *Chat  `json:"-"`
 }
 
-type Broker[K, V any] interface {
-	Load(key K) (value V, ok bool)
-	LoadOrStore(key K, value V) (actual V, loaded bool)
-	Store(key K, value V)
-	Delete(key K)
-}
-
-type ChatBroker Broker[string, *Chat]
+type Broker internal.Broker[string, *Chat]
 
 type chatBroker struct {
 	mu sync.Mutex
 	cs map[string]*Chat
 }
 
-func NewBroker() ChatBroker {
+func NewBroker() Broker {
 	b := &chatBroker{
 		cs: make(map[string]*Chat),
 	}
