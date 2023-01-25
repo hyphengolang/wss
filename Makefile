@@ -1,13 +1,16 @@
-.PHONY: dev,cli,solid
+.PHONY: dev,cli,up,down,psql
 
 dev:
-	go run -race ./cmd/
+	go run -race ./cmd/wss/
 
 cli:
 	sqlite3 wss.db
 
-solid:
-	npx degit solidjs/templates/ts web
+up:
+	docker compose up -d
 
-# migration:
-# 	.read ./sqlite/migrations/up.sql
+down:
+	docker compose down
+
+psql:
+	psql -h localhost -U postgres -W

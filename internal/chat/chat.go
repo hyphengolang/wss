@@ -6,7 +6,7 @@ import (
 	"github.com/google/uuid"
 
 	"com.adoublef.wss/internal"
-	websocket "com.adoublef.wss/internal/http/websocket/gobwas"
+	websocket "com.adoublef.wss/pkg/http/websocket/gobwas"
 )
 
 type Chat struct {

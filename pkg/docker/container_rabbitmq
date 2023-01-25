@@ -1,0 +1,72 @@
+package docker
+
+import (
+	"context"
+	"fmt"
+	"time"
+
+	"github.com/docker/go-connections/nat"
+	"github.com/hyphengolang/socialize/internal/docker/options"
+	amqp "github.com/rabbitmq/amqp091-go"
+	"github.com/testcontainers/testcontainers-go"
+	"github.com/testcontainers/testcontainers-go/wait"
+)
+
+type RabbitMQContainer struct {
+	testcontainers.Container
+}
+
+func NewRabbitMQContainer(ctx context.Context, opts ...options.ContainerOption) (*RabbitMQContainer, error) {
+	req := testcontainers.ContainerRequest{
+		Image:        "rabbitmq:3.8.9-management-alpine",
+		Env:          map[string]string{},
+		ExposedPorts: []string{},
+	}
+
+	for _, opt := range opts {
+		opt(&req)
+	}
+
+	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
+		ContainerRequest: req,
+		Started:          true,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return &RabbitMQContainer{Container: container}, nil
+}
+
+func NewRabbitMQConnection(ctx context.Context, natPort string, timeout time.Duration) (*RabbitMQContainer, *amqp.Connection, error) {
+	var (
+		user = "postgres"
+		pass = "postgres"
+	)
+
+	container, err := NewRabbitMQContainer(
+		ctx,
+		options.WithPort(natPort),
+		// options.WithInitialDatabase(user, pass, dbName),
+		options.WithWaitStrategy(wait.ForLog("database system is ready to accept connections").WithOccurrence(2).WithStartupTimeout(timeout)))
+	if err != nil {
+		return nil, nil, err
+	}
+
+	port, err := container.MappedPort(ctx, nat.Port(natPort))
+	if err != nil {
+		container.Terminate(ctx)
+		return nil, nil, err
+	}
+
+	host, err := container.Host(ctx)
+	if err != nil {
+		container.Terminate(ctx)
+		return nil, nil, err
+	}
+
+	connStr := fmt.Sprintf("amqp://%s:%s@%s:%s/", user, pass, host, port.Port())
+	conn, err := amqp.Dial(connStr)
+
+	return container, conn, nil
+}
