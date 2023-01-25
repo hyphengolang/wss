@@ -11,7 +11,6 @@ import (
 
 	"com.adoublef.wss/chat"
 	repo "com.adoublef.wss/chat/sqlite"
-	websocket "com.adoublef.wss/gobwas"
 )
 
 var _ http.Handler = (*service)(nil)
@@ -20,7 +19,7 @@ type service struct {
 	r repo.ChatRepo
 	m chi.Router
 
-	br *websocket.Broker
+	br chat.ChatBroker
 }
 
 func (s *service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -31,7 +30,7 @@ func NewService(r repo.Repo[*chat.Chat]) http.Handler {
 	s := &service{
 		m:  chi.NewMux(),
 		r:  r,
-		br: websocket.NewBroker(),
+		br: chat.NewBroker(),
 	}
 
 	s.routes()
@@ -84,7 +83,7 @@ func chatIDFromRequest(r *http.Request) (uuid.UUID, error) {
 func chatIDFromContext(ctx context.Context) (uuid.UUID, error) {
 	id, ok := ctx.Value(chatIDKey).(uuid.UUID)
 	if !ok {
-		return uuid.UUID{}, errors.New("chat id not found")
+		return uuid.Nil, errors.New("chat id not found")
 	}
 
 	return id, nil
@@ -94,19 +93,15 @@ func (s *service) handleP2PConn() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		uid, _ := chatIDFromRequest(r)
 
-		_, err := s.r.Find(r.Context(), uid)
+		// NOTE lookup cache first, then db
+		chat, err := s.r.Find(r.Context(), uid)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusNotFound)
 			return
 		}
 
-		cli, ok := s.br.Find(uid.String())
-		if !ok {
-			cli = websocket.NewClient()
-			s.br.Add(uid.String(), cli)
-		}
-
-		cli.ServeHTTP(w, r)
+		chat, _ = s.br.LoadOrStore(uid.String(), chat)
+		chat.Client().ServeHTTP(w, r)
 	}
 }
 
@@ -119,6 +114,8 @@ func (s *service) handleDeleteChat() http.HandlerFunc {
 			return
 		}
 
+		s.br.Delete(uid.String())
+
 		s.respond(w, r, nil, http.StatusNoContent)
 	}
 }
@@ -129,12 +126,16 @@ func (s *service) handleCreateChat() http.HandlerFunc {
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
+		// NOTE this would be created from user input
+		// such as title, description and capacity
 		chat := chat.NewChat()
 
 		if err := s.r.Create(r.Context(), chat); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+
+		s.br.Store(chat.ID.String(), chat)
 
 		s.respond(w, r, &response{
 			// TODO use the real host + path

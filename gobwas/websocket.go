@@ -1,51 +1,12 @@
 package websocket
 
 import (
-	"log"
 	"net"
 	"net/http"
-	"sync"
 
 	"github.com/gobwas/ws"
 	"github.com/gobwas/ws/wsutil"
 )
-
-type Broker struct {
-	mu sync.Mutex
-	cs map[string]*Client
-}
-
-func NewBroker() *Broker {
-	b := &Broker{
-		cs: make(map[string]*Client),
-	}
-
-	return b
-}
-
-func (b *Broker) Find(id string) (*Client, bool) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-
-	cli, ok := b.cs[id]
-	return cli, ok
-}
-
-func (b *Broker) Add(id string, cli *Client) {
-	b.mu.Lock()
-	{
-		b.cs[id] = cli
-	}
-	b.mu.Unlock()
-}
-
-func (b *Broker) Remove(id string) {
-	b.mu.Lock()
-	{
-		delete(b.cs, id)
-	}
-	b.mu.Unlock()
-}
 
 func read(conn *connHander, cli *Client) {
 	defer func() {
@@ -54,6 +15,8 @@ func read(conn *connHander, cli *Client) {
 	}()
 
 	for {
+		// TODO -- handle parsing the message here
+		// cli.handleMessage(msg *Message) error
 		msg, err := conn.read()
 		if err != nil {
 			// handle error
@@ -94,8 +57,6 @@ type Client struct {
 }
 
 func NewClient() *Client {
-	log.Println("gobwas: NewClient")
-
 	cli := &Client{
 		r:  make(chan *connHander),
 		d:  make(chan *connHander),
@@ -117,6 +78,8 @@ func (cli *Client) listen() {
 			delete(cli.cs, conn)
 			close(conn.send)
 		case msg := <-cli.bc:
+			// NOTE -- handle what to do with the message here
+			// cli.handleMessage(msg *Message) error
 			for conn := range cli.cs {
 				select {
 				case conn.send <- msg:
