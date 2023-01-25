@@ -49,56 +49,43 @@ type Message struct {
 
 type Broker internal.Broker[string, *Chat]
 
+// Material
+//
+// https://www.cs.cmu.edu/~410-s05/lectures/L31_LockFree.pdf
 type chatBroker struct {
-	mu sync.Mutex
-	cs map[string]*Chat
+	m sync.Map
 }
 
 func NewBroker() Broker {
-	b := &chatBroker{
-		cs: make(map[string]*Chat),
-	}
+	b := &chatBroker{}
 
 	return b
 }
 
 // Delete implements ChatBroker
 func (b *chatBroker) Delete(key string) {
-	b.mu.Lock()
-	{
-		delete(b.cs, key)
-		// NOTE - will need to delete the client as well
-	}
-	b.mu.Unlock()
+	b.m.Delete(key)
 }
 
 // Load implements ChatBroker
 func (b *chatBroker) Load(key string) (value *Chat, ok bool) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	cli, ok := b.cs[key]
-	return cli, ok
+	v, ok := b.m.Load(key)
+	return v.(*Chat), ok
 }
 
 // Store implements ChatBroker
 func (b *chatBroker) Store(key string, c *Chat) {
-	b.mu.Lock()
-	{
-		b.cs[key] = c
-	}
-	b.mu.Unlock()
+	b.m.Store(key, c)
 }
 
 // LoadOrStore implements ChatBroker
-func (b *chatBroker) LoadOrStore(key string, c *Chat) (actual *Chat, loaded bool) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	if _, loaded = b.cs[key]; !loaded {
-		b.cs[key] = c
+func (b *chatBroker) LoadOrStore(key string, chat *Chat) (*Chat, bool) {
+	actual, loaded := b.m.LoadOrStore(key, chat)
+	// does not exist
+	if !loaded {
+		actual = chat
+		actual.(*Chat).SetClient(websocket.NewClient())
 	}
 
-	actual = b.cs[key]
-	actual.SetClient(websocket.NewClient())
-
-	return actual, loaded
+	return actual.(*Chat), loaded
 }

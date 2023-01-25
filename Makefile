@@ -1,7 +1,7 @@
 .PHONY: dev,cli
 
 dev:
-	go run .
+	go run -race .
 
 cli:
 	sqlite3 wss.db
