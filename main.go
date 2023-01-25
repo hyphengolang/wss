@@ -25,8 +25,8 @@ func main() {
 	}
 }
 
-var port = flag.Int("port", 8080, "port that server will run on")
-var connStr = flag.String("db", "file:wss.db", "create a new sqlite3 database")
+var port = flag.Int("p", 8080, "port that server will run on")
+var connStr = flag.String("f", "file:wss.db", "create a new sqlite3 database")
 
 func init() {
 	flag.Parse()
