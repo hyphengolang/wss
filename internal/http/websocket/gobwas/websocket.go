@@ -11,6 +11,14 @@ import (
 	"github.com/gobwas/ws/wsutil"
 )
 
+const (
+	// Time allowed to write a message to the peer.
+	writeWait = 10 * time.Second
+	// Time allowed to read the next pong message from the peer.
+	pongWait   = 60 * time.Second
+	pingPeriod = (pongWait * 9) / 10
+)
+
 func read(conn *connHander, cli *Client) {
 	defer func() {
 		cli.d <- conn
@@ -18,12 +26,9 @@ func read(conn *connHander, cli *Client) {
 	}()
 
 	conn.setReadDeadLine(pongWait)
-	// handle Pong message
 
 	for {
-		// TODO -- handle parsing the message here
-		// cli.handleMessage(msg *Message) error
-		msg, err := conn.readRaw()
+		msg, err := conn.read()
 		if err != nil {
 			// handle error
 			break
@@ -31,22 +36,6 @@ func read(conn *connHander, cli *Client) {
 
 		cli.bc <- msg
 	}
-}
-
-const (
-	// Time allowed to write a message to the peer.
-	writeWait = 2 * time.Second
-	// Time allowed to read the next pong message from the peer.
-	pongWait   = 10 * time.Second
-	pingPeriod = (pongWait * 9) / 10
-)
-
-func (c *connHander) setWriteDeadLine(d time.Duration) error {
-	return c.rwc.SetWriteDeadline(time.Now().Add(d))
-}
-
-func (c *connHander) setReadDeadLine(d time.Duration) error {
-	return c.rwc.SetReadDeadline(time.Now().Add(d))
 }
 
 func write(conn *connHander) {
@@ -61,25 +50,18 @@ func write(conn *connHander) {
 		case msg, ok := <-conn.send:
 			conn.setWriteDeadLine(writeWait)
 			if !ok {
-				conn.log("write close")
-				// write close
-				conn.writeRaw(&wsutil.Message{OpCode: ws.OpClose, Payload: []byte{}})
+				conn.write(&wsutil.Message{OpCode: ws.OpClose, Payload: []byte{}})
 				return
 			}
 
-			if err := conn.writeRaw(msg); err != nil {
-				// handle error
-				// err: write tcp [::1]:8080->[::1]:33210: i/o timeout
-				conn.logf("err: %v\n", err)
+			if err := conn.write(msg); err != nil {
+				conn.logf("msg err: %v\n", err)
 				return
 			}
-		// TODO case ticker and pong message
 		case <-ticker.C:
-			conn.log("ticker")
 			conn.setWriteDeadLine(writeWait)
-			err := conn.writeRaw(&wsutil.Message{OpCode: ws.OpPing, Payload: nil})
-			if err != nil {
-				conn.logf("err: %v\n", err)
+			if err := conn.write(&wsutil.Message{OpCode: ws.OpPing, Payload: nil}); err != nil {
+				conn.logf("ticker err: %v\n", err)
 				return
 			}
 		}
@@ -91,6 +73,10 @@ type Client struct {
 	bc   chan *wsutil.Message
 	cs   map[*connHander]bool
 	u    *ws.HTTPUpgrader
+
+	// Capacity of the send channel.
+	// If capacity is 0, the send channel is unbuffered.
+	Capacity uint8
 }
 
 func NewClient() *Client {
@@ -115,8 +101,6 @@ func (cli *Client) listen() {
 			delete(cli.cs, conn)
 			close(conn.send)
 		case msg := <-cli.bc:
-			// NOTE -- handle what to do with the message here
-			// cli.handleMessage(msg *Message) error
 			for conn := range cli.cs {
 				select {
 				case conn.send <- msg:
@@ -136,7 +120,6 @@ func (cli *Client) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// NOTE -- for testing purposes only
 	l := log.Default()
 
 	conn := &connHander{
@@ -161,35 +144,15 @@ type connHander struct {
 	log  func(v ...any)
 }
 
-func (c *connHander) controlHandler(h ws.Header, r io.Reader) error {
-	switch op := h.OpCode; op {
-	case ws.OpPing:
-		return c.handlePing(h)
-	case ws.OpPong:
-		return c.handlePong(h)
-	case ws.OpClose:
-		return c.handleClose(h)
-	}
-
-	return wsutil.ErrNotControlFrame
+func (c *connHander) setWriteDeadLine(d time.Duration) error {
+	return c.rwc.SetWriteDeadline(time.Now().Add(d))
 }
 
-func (c *connHander) handlePing(h ws.Header) error {
-	c.log("ping")
-	return nil
+func (c *connHander) setReadDeadLine(d time.Duration) error {
+	return c.rwc.SetReadDeadline(time.Now().Add(d))
 }
 
-func (c *connHander) handlePong(h ws.Header) error {
-	c.log("pong")
-	return c.setReadDeadLine(pongWait)
-}
-
-func (c *connHander) handleClose(h ws.Header) error {
-	c.log("close")
-	return nil
-}
-
-func (c *connHander) readRaw() (*wsutil.Message, error) {
+func (c *connHander) read() (*wsutil.Message, error) {
 	r := wsutil.NewReader(c.rwc, ws.StateServerSide)
 
 	for {
@@ -222,10 +185,38 @@ func (c *connHander) readRaw() (*wsutil.Message, error) {
 	}
 }
 
-func (c *connHander) writeRaw(msg *wsutil.Message) error {
+func (c *connHander) write(msg *wsutil.Message) error {
 	// This is server-side
 	frame := ws.NewFrame(msg.OpCode, true, msg.Payload)
 	return ws.WriteFrame(c.rwc, frame)
+}
+
+func (c *connHander) controlHandler(h ws.Header, r io.Reader) error {
+	switch op := h.OpCode; op {
+	case ws.OpPing:
+		return c.handlePing(h)
+	case ws.OpPong:
+		return c.handlePong(h)
+	case ws.OpClose:
+		return c.handleClose(h)
+	}
+
+	return wsutil.ErrNotControlFrame
+}
+
+func (c *connHander) handlePing(h ws.Header) error {
+	c.log("ping")
+	return nil
+}
+
+func (c *connHander) handlePong(h ws.Header) error {
+	c.log("pong")
+	return c.setReadDeadLine(pongWait)
+}
+
+func (c *connHander) handleClose(h ws.Header) error {
+	c.log("close")
+	return nil
 }
 
 // Recommended to use connHander.readRaw instead
