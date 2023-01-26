@@ -1,15 +1,16 @@
 package main
 
 import (
-	"database/sql"
+	"context"
 	"flag"
 	"log"
 	"net/http"
 	"strconv"
 
-	srv "com.adoublef.wss/internal/chat/http"
-	repo "com.adoublef.wss/internal/chat/sqlite"
+	srv "com.adoublef.wss/internal/communications/http"
+	repo "com.adoublef.wss/internal/communications/sql/postgres"
 	"github.com/go-chi/chi/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	_ "embed"
 
@@ -26,20 +27,25 @@ func main() {
 }
 
 var port = flag.Int("p", 8080, "port that server will run on")
-var connStr = flag.String("f", "file:wss.db", "create a new sqlite3 database")
+var connStr = flag.String("f", "postgres://postgres:postgres@localhost:5432/", "create a new sqlite3 database")
 
 func init() {
 	flag.Parse()
 }
 
 func run() error {
-	db, err := sql.Open("sqlite3", *connStr)
+	ctx := context.Background()
+	conn, err := pgxpool.New(ctx, *connStr)
 	if err != nil {
 		return err
 	}
-	defer db.Close()
+	defer conn.Close()
 
-	chatSrv := newChatService(db)
+	if err := conn.Ping(ctx); err != nil {
+		return err
+	}
+
+	chatSrv := newChatService(conn)
 
 	rootMux := chi.NewMux()
 	rootMux.HandleFunc("/*", serveIndex)
@@ -60,8 +66,7 @@ func serveIndex(w http.ResponseWriter, r *http.Request) {
 	w.Write(indexHTML)
 }
 
-func newChatService(db *sql.DB) http.Handler {
-	chatRepo := repo.NewChatRepo(db)
-	chatSrv := srv.NewService(chatRepo)
-	return chatSrv
+func newChatService(conn *pgxpool.Pool) http.Handler {
+	repo := repo.NewChatRepo(conn)
+	return srv.NewService(repo)
 }

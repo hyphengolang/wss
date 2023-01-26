@@ -4,12 +4,13 @@ import (
 	"context"
 	"database/sql"
 
-	intern "com.adoublef.wss/internal/chat"
+	intern "com.adoublef.wss/internal/communications"
+	repo "com.adoublef.wss/internal/communications/sql"
 )
 
-type ChatRepo Repo[*intern.Chat]
+type ThreadRepo repo.Repo[*intern.Thread]
 
-var _ ChatRepo = (*chatRepo)(nil)
+var _ ThreadRepo = (*chatRepo)(nil)
 
 type chatRepo struct {
 	db *sql.DB
@@ -22,16 +23,16 @@ func (r *chatRepo) Delete(ctx context.Context, key any) error {
 	return err
 }
 
-func (r *chatRepo) Create(ctx context.Context, chat *intern.Chat) error {
+func (r *chatRepo) Create(ctx context.Context, chat *intern.Thread) error {
 	q := `INSERT INTO "chats" (id) VALUES (?)`
 
 	_, err := r.db.ExecContext(ctx, q, chat.ID)
 	return err
 }
 
-func (r *chatRepo) Find(ctx context.Context, key any) (*intern.Chat, error) {
+func (r *chatRepo) Find(ctx context.Context, key any) (*intern.Thread, error) {
 	q1 := `SELECT id FROM "chats" WHERE id = ?`
-	var chat intern.Chat = intern.Chat{
+	var chat intern.Thread = intern.Thread{
 		Messages: make([]*intern.Message, 0),
 	}
 
@@ -65,7 +66,7 @@ func (r *chatRepo) Find(ctx context.Context, key any) (*intern.Chat, error) {
 	return &chat, nil
 }
 
-func (r *chatRepo) FindMany(ctx context.Context) ([]*intern.Chat, error) {
+func (r *chatRepo) FindMany(ctx context.Context) ([]*intern.Thread, error) {
 	q := `SELECT id FROM "chats"`
 
 	rows, err := r.db.QueryContext(ctx, q)
@@ -74,9 +75,9 @@ func (r *chatRepo) FindMany(ctx context.Context) ([]*intern.Chat, error) {
 	}
 	defer rows.Close()
 
-	cs := []*intern.Chat{}
+	cs := []*intern.Thread{}
 	for rows.Next() {
-		var c intern.Chat
+		var c intern.Thread
 
 		if err := rows.Scan(&c.ID); err != nil {
 			return nil, err
@@ -88,7 +89,7 @@ func (r *chatRepo) FindMany(ctx context.Context) ([]*intern.Chat, error) {
 	return cs, rows.Err()
 }
 
-func NewChatRepo(conn *sql.DB) ChatRepo {
+func NewChatRepo(conn *sql.DB) ThreadRepo {
 	r := chatRepo{
 		db: conn,
 	}

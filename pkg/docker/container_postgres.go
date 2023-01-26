@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
+	"com.adoublef.wss/pkg/docker/options"
 	"github.com/docker/go-connections/nat"
-	"github.com/hyphengolang/socialize/internal/docker/options"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
